@@ -51,7 +51,7 @@ type QuoteDateTime struct {
 func (qdt *QuoteDateTime) UnmarshalJSON(data []byte) error {
 	// Fractional seconds are handled implicitly by Parse.
 	var err error
-	t, err := time.Parse(`"`+time.RFC3339+`"`, string(data))
+	t, err := time.Parse(`"2006-01-02T15:04:05"`, string(data))
 	qdt.Val = t
 	return err
 }

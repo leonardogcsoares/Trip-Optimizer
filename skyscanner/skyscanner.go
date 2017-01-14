@@ -63,7 +63,7 @@ func (a *API) GetCheapestPath(cpr CheapestPathRequest) (FlightPath, error) {
 	}
 
 	for _, p := range cpr.Places {
-		quoteGrid, err := a.getMonthPriceRoute(Location{
+		quoteGrid, err := a.GetMonthPriceRoute(Location{
 			Name: cpr.Start.Name,
 			Date: fmt.Sprintf("%d-%s", st.Year(), st.Month().String()),
 		},
@@ -91,8 +91,37 @@ func (a *API) calculatePrice(currentPath string, currentPrice int, origin CPPlac
 	}
 
 	if len(placesToVisit) == 0 {
+		if origin.Name == a.start.Name {
+			return
+		}
 		// check price from origin to a.start
-		// submit final price to prices channel <-finalPrice
+		var routeGrid RouteGridPrice
+		var exists bool
+		var err error
+		if routeGrid, exists = a.prices[fmt.Sprintf("%s-%s-%d-%s", origin.Name, a.start.Name, origin.startDate.Year(), origin.startDate.Month().String())]; !exists {
+			routeGrid, err = a.GetMonthPriceRoute(
+				Location{
+					Name: origin.Name,
+					Date: fmt.Sprintf("%d-%s", origin.startDate.Year(), origin.startDate.Month().String()),
+				},
+				Location{
+					Name: a.start.Name,
+				})
+
+			if err != nil {
+				return
+			}
+		}
+
+		checkDate := origin.startDate.Add(time.Hour * time.Duration(24*origin.Stay))
+		for _, quote := range routeGrid.Quotes {
+			t := quote.QuoteDateTime.Val
+			if fmt.Sprintf("%d-%s", t.Day(), t.Month().String()) == fmt.Sprintf("%d-%s", checkDate.Day(), checkDate.Month().String()) {
+				// totalPrice := quote.MinPrice + currentPrice
+				// Submit totalPrice and currentPath
+				// submit final price to prices channel <-finalPrice
+			}
+		}
 		return
 	}
 
@@ -109,12 +138,31 @@ func (a *API) calculatePrice(currentPath string, currentPrice int, origin CPPlac
 		}
 
 		// check chepeast price from origin to destination given origin.startDate in a.prices map
+
+		var routeGrid RouteGridPrice
+		var exists bool
+		var err error
+		if routeGrid, exists = a.prices[fmt.Sprintf("%s-%s-%d-%s", origin.Name, a.start.Name, origin.startDate.Year(), origin.startDate.Month().String())]; !exists {
+			routeGrid, err = a.GetMonthPriceRoute(
+				Location{
+					Name: origin.Name,
+					Date: fmt.Sprintf("%d-%s", origin.startDate.Year(), origin.startDate.Month().String()),
+				},
+				Location{
+					Name: a.start.Name,
+				})
+
+			if err != nil {
+				return
+			}
+		}
 		price := 0
 
 		toVisit = remove(toVisit, index)
 		haveVisited[destination.Name] = destination
 		for _, newOrigin := range toVisit {
-			a.calculatePrice(fmt.Sprintf("%s-%s", currentPath, destination.Name),
+			a.calculatePrice(
+				fmt.Sprintf("%s-%s", currentPath, destination.Name),
 				currentPrice+price,
 				newOrigin,
 				haveVisited,
@@ -129,8 +177,12 @@ func remove(slice []CPPlace, s int) []CPPlace {
 	return append(slice[:s], slice[s+1:]...)
 }
 
+func dateKey(t1, t2 time.Time) {
+
+}
+
 // GetMonthPriceRoute TODO
-func (a *API) getMonthPriceRoute(startLoc, endLoc Location) (RouteGridPrice, error) {
+func (a *API) GetMonthPriceRoute(startLoc, endLoc Location) (RouteGridPrice, error) {
 	// http://partners.api.skyscanner.net/apiservices/browsegrid/v1.0/{market}/{currency}/{locale}/
 	// {originPlace}/{destinationPlace}/{outboundPartialDate}/{inboundPartialDate}?apiKey={apiKey}
 
